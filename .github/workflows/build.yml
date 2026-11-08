@@ -1,0 +1,60 @@
+name: Build BootFix APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Compile and Sign Tiny APK
+        run: |
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          PLATFORM=$(ls -d $ANDROID_HOME/platforms/* | sort -V | tail -n 1)
+          echo "Using build-tools: $BUILD_TOOLS and platform: $PLATFORM"
+
+          mkdir -p build/gen build/obj build/apk
+
+          # 1. Compile resources & generate R.java
+          $BUILD_TOOLS/aapt package -f -m \
+            -J build/gen \
+            -M AndroidManifest.xml \
+            -S res \
+            -I $PLATFORM/android.jar \
+            -F build/unaligned.apk
+
+          # 2. Compile Java classes (target Java 8 for Android 7.1.2)
+          javac -source 1.8 -target 1.8 \
+            -bootclasspath $PLATFORM/android.jar \
+            -classpath $PLATFORM/android.jar \
+            -d build/obj \
+            build/gen/com/mantis/bootfix/R.java \
+            src/com/mantis/bootfix/BootService.java \
+            src/com/mantis/bootfix/BootReceiver.java
+
+          # 3. Convert .class to classes.dex (min-api 22 for Fire OS 6)
+          $BUILD_TOOLS/d8 --min-api 22 --lib $PLATFORM/android.jar --output build/apk build/obj/com/mantis/bootfix/*.class
+
+          # 4. Add classes.dex to APK & zipalign
+          cd build/apk && zip -uj ../unaligned.apk classes.dex && cd ../..
+          $BUILD_TOOLS/zipalign -f 4 build/unaligned.apk build/bootfix-unsigned.apk
+
+          # 5. Generate keystore and sign APK (v1 + v2 signatures)
+          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          $BUILD_TOOLS/apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --v1-signing-enabled true --v2-signing-enabled true --out bootfix.apk build/bootfix-unsigned.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootfix-apk
+          path: bootfix.apk
