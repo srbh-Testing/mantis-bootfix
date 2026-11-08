@@ -1,45 +1,27 @@
 package com.mantis.bootfix;
 
 import android.accessibilityservice.AccessibilityService;
-import android.view.accessibility.AccessibilityEvent;
-import android.os.Handler;
-import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
+import android.view.accessibility.AccessibilityEvent;
 
 public class BootService extends AccessibilityService {
-    private boolean done = false;
-
-    private void signalReady(final String tag) {
-        BootReceiver.signal(getApplicationContext(), tag, null);
-    }
-
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        signalReady("onCreate");
-        final Handler h = new Handler(Looper.getMainLooper());
-        for (int i = 1; i <= 20; i++) {
-            final int step = i;
-            h.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    signalReady("timer_" + step);
-                }
-            }, i * 500L);
-        }
-    }
+    private String launcher;
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        signalReady("onServiceConnected");
+        launcher = BootReceiver.launcherPkg(getApplicationContext());
+        Log.i("MantisBootFix", BootReceiver.up() + "service connected, launcher=" + launcher);
     }
 
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (!done) {
-            done = true;
-            signalReady("firstEvent");
+    public void onAccessibilityEvent(AccessibilityEvent e) {
+        if (BootReceiver.signaled || e == null || e.getPackageName() == null) return;
+        if (SystemClock.elapsedRealtime() > 120000) return;
+        if (launcher == null) launcher = BootReceiver.launcherPkg(getApplicationContext());
+        if (launcher.equals(e.getPackageName().toString())) {
+            BootReceiver.signalOnce(getApplicationContext(), "launcher-window", null);
         }
     }
 
