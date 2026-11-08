@@ -10,7 +10,7 @@ import android.util.Log;
 
 public class BootReceiver extends BroadcastReceiver {
     static final String KEY = "bootanim.real_home_ready";
-    private static boolean toggled = false;
+    static boolean toggled = false;
 
     // First call per process: write 0, then 1 after a short delay so the
     // value really CHANGES and observers fire. Later calls just write 1.

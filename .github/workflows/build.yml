@@ -40,7 +40,8 @@ jobs:
             -d build/obj \
             build/gen/com/mantis/bootfix/R.java \
             src/com/mantis/bootfix/BootService.java \
-            src/com/mantis/bootfix/BootReceiver.java
+            src/com/mantis/bootfix/BootReceiver.java \
+            src/com/mantis/bootfix/SignalActivity.java
 
           # 3. Convert .class to classes.dex (min-api 22 for Fire OS 6)
           $BUILD_TOOLS/d8 --min-api 22 --lib $PLATFORM/android.jar --output build/apk build/obj/com/mantis/bootfix/*.class
